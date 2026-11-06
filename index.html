@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Job Hunt Tracker</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#2f5bd3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Job Tracker">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5bd3'/%3E%3Crect x='14' y='22' width='36' height='26' rx='4' fill='none' stroke='white' stroke-width='5'/%3E%3Cpath d='M25 22v-5h14v5' fill='none' stroke='white' stroke-width='5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-size:15px}
+[hidden]{display:none!important}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+
+/* Layout: one working column — header + pipeline summary strip, filter bar, then a ledger table that folds into cards on phones. */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --sunk:#eceef2; --fg:#16191f; --muted:#5c6370; --line:#dde0e6;
+  --accent:#2f5bd3; --accent-ink:#ffffff; --accent-soft:#e3eaff;
+  --s-wish:#8a8f99; --s-applied:#2f5bd3; --s-oa:#7a4fd0; --s-int:#c77a0a; --s-offer:#13875a; --s-rej:#c4373a; --s-ghost:#a0a4ad;
+  --warn-bg:#fff2dc; --warn-fg:#8a5300;
+  --font-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --font-body:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111318; --surface:#191c23; --sunk:#22262f; --fg:#e7e9ee; --muted:#9aa1ad; --line:#2d323d;
+  --accent:#7d9cff; --accent-ink:#0d1220; --accent-soft:#1f2a48;
+  --s-wish:#8b919c; --s-applied:#7d9cff; --s-oa:#b294f5; --s-int:#f0a83c; --s-offer:#3fc48d; --s-rej:#f0686b; --s-ghost:#6d7380;
+  --warn-bg:#3a2c10; --warn-fg:#f5c46b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111318; --surface:#191c23; --sunk:#22262f; --fg:#e7e9ee; --muted:#9aa1ad; --line:#2d323d;
+  --accent:#7d9cff; --accent-ink:#0d1220; --accent-soft:#1f2a48;
+  --s-wish:#8b919c; --s-applied:#7d9cff; --s-oa:#b294f5; --s-int:#f0a83c; --s-offer:#3fc48d; --s-rej:#f0686b; --s-ghost:#6d7380;
+  --warn-bg:#3a2c10; --warn-fg:#f5c46b; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px}
+h1{font-family:var(--font-display);font-weight:800;font-size:clamp(26px,4vw,34px);letter-spacing:-.02em;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;font-size:14px}
+.sub b{color:var(--fg);font-weight:600}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 14px;font-weight:600;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--s-rej)}
+.btn.danger.armed{background:var(--s-rej);color:#fff;border-color:var(--s-rej)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn svg{width:16px;height:16px}
+
+/* pipeline strip */
+.pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.pipe button{all:unset;cursor:pointer;background:var(--surface);padding:12px 14px;display:flex;flex-direction:column;gap:2px;position:relative}
+.pipe button:hover{background:var(--sunk)}
+.pipe button[aria-pressed="true"]{background:var(--accent-soft)}
+.pipe button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.pipe .n{font-family:var(--font-display);font-weight:700;font-size:24px;font-variant-numeric:tabular-nums;line-height:1.1}
+.pipe .l{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--c,var(--muted));flex:none}
+.rate{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 18px}
+.rate b{color:var(--fg);font-variant-numeric:tabular-nums}
+
+/* filters */
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bar input[type=search]{flex:1 1 220px;min-width:0}
+.field{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 11px;width:100%}
+.bar .field{width:auto}
+.bar input.field{width:auto}
+
+/* ledger */
+.ledger{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.row{display:grid;grid-template-columns:4px minmax(0,2.2fr) minmax(0,1.3fr) 130px 104px 112px 28px;align-items:center;gap:14px;padding:12px 16px 12px 0;border-top:1px solid var(--line);cursor:pointer}
+.row:first-child{border-top:0}
+.row:hover{background:var(--sunk)}
+.row.head{cursor:default;background:var(--sunk);font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;padding-block:9px}
+.row.head:hover{background:var(--sunk)}
+.row .stripe{align-self:stretch;background:var(--c);margin-block:-12px;border-radius:0}
+.row.head .stripe{background:transparent}
+.co{font-weight:700;font-size:15px;overflow-wrap:anywhere}
+.ro{color:var(--muted);font-size:14px;overflow-wrap:anywhere}
+.meta{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.mono{font-family:var(--font-mono);font-size:13px;font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:3px 9px 3px 7px;border-radius:999px;background:color-mix(in srgb,var(--c) 14%,transparent);color:var(--c);white-space:nowrap}
+.tag{font-size:11.5px;border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--muted);white-space:nowrap}
+.due{display:inline-block;font-size:12px;font-weight:600;background:var(--warn-bg);color:var(--warn-fg);border-radius:5px;padding:1px 6px}
+.chev{color:var(--muted);justify-self:end}
+.empty{padding:44px 20px;text-align:center;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:12px}
+.empty h2{font-family:var(--font-display);color:var(--fg);font-size:19px;margin:0}
+.empty p{max-width:46ch;margin:0}
+.note{font-size:13px;color:var(--muted);background:var(--sunk);border-radius:8px;padding:9px 12px}
+.note.warn{background:var(--warn-bg);color:var(--warn-fg)}
+
+@media (max-width:760px){
+  .pipe{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .pipe button{padding:10px 8px}
+  .pipe .n{font-size:20px}
+  .pipe .l{text-transform:none;letter-spacing:0;font-size:11.5px;gap:4px;min-width:0}
+  .bar .field{flex:1 1 140px}
+  .row.head{display:none}
+  .row{grid-template-columns:4px minmax(0,1fr) auto;grid-template-areas:"s a p" "s b b" "s c c";gap:4px 12px;padding:14px 14px 14px 0}
+  .row .stripe{grid-area:s;margin-block:-14px}
+  .row .c1{grid-area:a}.row .c4{grid-area:p;align-self:start}
+  .row .c2{grid-area:b}.row .c3{grid-area:c;display:flex;gap:10px;flex-wrap:wrap}
+  .row .c5,.row .c6,.row .chev{display:none}
+  .row .c3 .m-date{display:inline}
+}
+.m-date{display:none}
+
+/* editor sheet */
+.scrim{position:fixed;inset:0;background:color-mix(in srgb,#000 45%,transparent);z-index:50;display:flex;justify-content:flex-end}
+.sheet{background:var(--surface);width:min(520px,100%);height:100%;overflow:auto;padding-block:calc(20px + env(safe-area-inset-top,0px)) calc(24px + env(safe-area-inset-bottom,0px));padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px;border-left:1px solid var(--line)}
+.sheet h2{font-family:var(--font-display);margin:0;font-size:21px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:480px){.grid2{grid-template-columns:1fr}}
+label.f{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);min-width:0}
+label.f .field{text-transform:none;letter-spacing:0;font-weight:400;font-size:15px;color:var(--fg)}
+textarea.field{min-height:96px;resize:vertical}
+.sheet-foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:8px;border-top:1px solid var(--line)}
+.sheet-foot div{display:flex;gap:8px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;z-index:60;max-width:calc(100% - 32px)}
+.link{color:var(--accent);text-decoration:none;font-weight:600}
+.link:hover{text-decoration:underline}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
+
+.foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--muted);padding-top:4px}
+.connect{min-height:80vh;justify-content:center;align-items:center}
+.cbox{width:min(440px,100%);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:26px 22px;display:flex;flex-direction:column;gap:14px}
+.cbox h1{font-size:28px}
+#connectForm{display:flex;flex-direction:column;gap:14px}
+#connectForm .btn{justify-content:center;padding:11px}
+.cbox .note{margin:0}
+</style>
+</head>
+<body>
+<div class="wrap connect" id="connect" hidden>
+  <div class="cbox">
+    <h1>Job Hunt Tracker</h1>
+    <p class="sub">Connect this device to your private Google Sheet. You only do this once per device.</p>
+    <form id="connectForm" autocomplete="off">
+      <label class="f">Google Sheet script link<input class="field" id="cUrl" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec" required></label>
+      <label class="f">Passcode<input class="field" id="cKey" type="password" required></label>
+      <p class="note warn" id="cErr" hidden></p>
+      <button class="btn primary" id="cBtn" type="submit">Connect</button>
+    </form>
+    <p class="meta">Don't have these yet? Follow the steps in <a class="link" href="https://github.com/dpalate4185/application-tracker/blob/main/SETUP.md" target="_blank" rel="noopener">SETUP.md</a>.</p>
+  </div>
+</div>
+<div class="wrap" id="app" hidden>
+  <header>
+    <div>
+      <h1>Job Hunt Tracker</h1>
+      <p class="sub" id="sub">Internships, co-ops and full-time roles in one place.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="refreshBtn" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+      <button class="btn" id="exportBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Download Excel</button>
+      <button class="btn primary" id="addBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add application</button>
+    </div>
+  </header>
+
+  <div id="banner" hidden></div>
+
+  <div class="pipe" id="pipe" role="group" aria-label="Filter by status"></div>
+  <div class="rate" id="rate"></div>
+
+  <div class="bar">
+    <input class="field" type="search" id="q" placeholder="Search company, role, location, notes…" aria-label="Search">
+    <select class="field" id="fType" aria-label="Job type">
+      <option value="">All types</option><option>Internship</option><option>Co-op</option><option>Full-time</option><option>Part-time</option><option>Contract</option>
+    </select>
+    <select class="field" id="sort" aria-label="Sort">
+      <option value="applied">Newest applied</option>
+      <option value="updated">Recently updated</option>
+      <option value="follow">Follow-up date</option>
+      <option value="company">Company A–Z</option>
+    </select>
+  </div>
+
+  <div class="ledger" id="ledger" aria-live="polite"></div>
+  <footer class="foot"><span>Your data lives in your private Google Sheet.</span><button class="btn danger" type="button" id="forgetBtn">Forget this device</button></footer>
+</div>
+
+<div class="scrim" id="scrim" hidden>
+  <form class="sheet" id="form" autocomplete="off">
+    <h2 id="formTitle">Add application</h2>
+    <div class="grid2">
+      <label class="f">Company<input class="field" id="company" required></label>
+      <label class="f">Role<input class="field" id="role" required placeholder="Data Analyst Intern"></label>
+      <label class="f">Status<select class="field" id="status"></select></label>
+      <label class="f">Job type<select class="field" id="type"><option>Internship</option><option>Co-op</option><option>Full-time</option><option>Part-time</option><option>Contract</option></select></label>
+      <label class="f">Date applied<input class="field" type="date" id="applied"></label>
+      <label class="f">Follow up on<input class="field" type="date" id="followUp"></label>
+      <label class="f">Location<input class="field" id="location" placeholder="San Diego, CA / Remote"></label>
+      <label class="f">Work mode<select class="field" id="mode"><option value="">—</option><option>On-site</option><option>Hybrid</option><option>Remote</option></select></label>
+      <label class="f">Source<input class="field" id="source" placeholder="LinkedIn, Handshake, referral…"></label>
+      <label class="f">Resume version<input class="field" id="resume" placeholder="Resume_DP v2"></label>
+      <label class="f">Pay / salary<input class="field" id="salary" placeholder="$28/hr or $85k"></label>
+      <label class="f">Contact<input class="field" id="contact" placeholder="Recruiter name / email"></label>
+    </div>
+    <label class="f">Job posting link<input class="field" id="link" type="url" placeholder="https://…"></label>
+    <label class="f">Notes<textarea class="field" id="notes" placeholder="Interview rounds, questions asked, next steps…"></textarea></label>
+    <div class="sheet-foot">
+      <button class="btn danger" type="button" id="delBtn">Delete</button>
+      <div><button class="btn" type="button" id="cancelBtn">Cancel</button><button class="btn primary" type="submit" id="saveBtn">Save</button></div>
+    </div>
+  </form>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+const STATUSES=[
+  {k:"Wishlist",c:"--s-wish"},{k:"Applied",c:"--s-applied"},{k:"Assessment",c:"--s-oa"},
+  {k:"Interviewing",c:"--s-int"},{k:"Offer",c:"--s-offer"},{k:"Rejected",c:"--s-rej"},{k:"No response",c:"--s-ghost"}];
+const SC=Object.fromEntries(STATUSES.map(s=>[s.k,s.c]));
+const FIELDS=["company","role","status","type","applied","followUp","location","mode","source","resume","salary","contact","link","notes"];
+const $=id=>document.getElementById(id);
+const CKEY="apptracker.conn.v1";
+let apps=[], conn=null, mode="loading", statusFilter="", editingId=null, busy=false;
+
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const fmt=s=>{if(!s||!/^\d{4}-\d{2}-\d{2}$/.test(s))return s||"";const [y,m,d]=s.split("-");return new Date(+y,+m-1,+d).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})};
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2800)}
+function banner(html,warn){const b=$("banner");if(!html){b.hidden=true;return}b.className="note"+(warn?" warn":"");b.innerHTML=html;b.hidden=false}
+
+/* ---------- connection ---------- */
+function loadConn(){try{const c=JSON.parse(localStorage.getItem(CKEY)||"null");return c&&c.url&&c.key?c:null}catch(e){return null}}
+function saveConn(c){try{localStorage.setItem(CKEY,JSON.stringify(c))}catch(e){}}
+function forgetConn(){try{localStorage.removeItem(CKEY)}catch(e){}conn=null;apps=[]}
+
+const ERRORS={
+  unauthorized:"That passcode doesn't match the one in your Google Sheet script.",
+  passcode_not_set:"Your script still has the placeholder passcode. Change PASSCODE in the script, then deploy a new version.",
+  network:"Couldn't reach your Google Sheet script. Check the link (it should end in /exec) and your internet connection.",
+  bad_response:"The link answered, but not like the tracker script. Make sure you copied the Web app URL, not the editor link.",
+};
+async function call(action,payload,c){
+  c=c||conn;
+  let res;
+  try{
+    res=await fetch(c.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({key:c.key,action,...payload}),redirect:"follow"});
+  }catch(e){throw {code:"network"}}
+  let data;try{data=await res.json()}catch(e){throw {code:"bad_response"}}
+  if(!data.ok)throw {code:data.error||"server_error",message:data.message};
+  return data;
+}
+const errMsg=e=>ERRORS[e.code]||("Something went wrong ("+(e.code||"error")+"). Try again.");
+
+async function refresh(quiet){
+  if(!conn||busy)return;
+  try{
+    const d=await call("list");
+    apps=d.apps||[];mode="ready";banner("");render();
+  }catch(e){
+    if(e.code==="unauthorized"){forgetConn();showConnect(ERRORS.unauthorized);return}
+    if(!quiet||mode!=="ready")banner(esc(errMsg(e)),true);
+    if(mode==="loading"){mode="ready";render()}
+  }
+}
+
+function showConnect(err){
+  $("app").hidden=true;$("connect").hidden=false;
+  $("cErr").hidden=!err;$("cErr").textContent=err||"";
+  const c=loadConn();$("cUrl").value=c?.url||"";$("cKey").value="";
+  setTimeout(()=>$("cUrl").focus(),30);
+}
+$("connectForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const c={url:$("cUrl").value.trim(),key:$("cKey").value};
+  if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(c.url)){$("cErr").textContent="Paste the Web app URL from Apps Script. It starts with https://script.google.com/ and ends in /exec.";$("cErr").hidden=false;return}
+  $("cBtn").disabled=true;$("cBtn").textContent="Connecting…";
+  try{
+    await call("ping",{},c);
+    conn=c;saveConn(c);$("connect").hidden=true;$("app").hidden=false;mode="loading";render();refresh();
+    toast("Connected. This device will remember it.");
+  }catch(err){$("cErr").textContent=errMsg(err);$("cErr").hidden=false}
+  finally{$("cBtn").disabled=false;$("cBtn").textContent="Connect"}
+});
+$("forgetBtn").onclick=()=>{
+  const b=$("forgetBtn");
+  if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Tap again to forget";setTimeout(()=>{b.classList.remove("armed");b.textContent="Forget this device"},4000);return}
+  forgetConn();b.classList.remove("armed");b.textContent="Forget this device";showConnect("");toast("This device no longer has access.");
+};
+
+/* ---------- render ---------- */
+function filtered(){
+  const q=$("q").value.trim().toLowerCase(),t=$("fType").value,s=$("sort").value;
+  let list=apps.filter(a=>(!statusFilter||a.status===statusFilter)&&(!t||a.type===t)&&
+    (!q||[a.company,a.role,a.location,a.notes,a.source,a.contact].join(" ").toLowerCase().includes(q)));
+  const cmp={
+    applied:(a,b)=>(b.applied||"").localeCompare(a.applied||""),
+    updated:(a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""),
+    follow:(a,b)=>(a.followUp||"9999").localeCompare(b.followUp||"9999"),
+    company:(a,b)=>(a.company||"").localeCompare(b.company||"")}[s];
+  return list.sort(cmp);
+}
+function render(){
+  const counts=Object.fromEntries(STATUSES.map(s=>[s.k,0]));apps.forEach(a=>{if(counts[a.status]!=null)counts[a.status]++});
+  $("pipe").innerHTML=`<button type="button" data-s="" aria-pressed="${!statusFilter}"><span class="n">${apps.length}</span><span class="l">All</span></button>`+
+    STATUSES.map(s=>`<button type="button" data-s="${s.k}" aria-pressed="${statusFilter===s.k}"><span class="n">${counts[s.k]}</span><span class="l"><span class="dot" style="--c:var(${s.c})"></span>${s.k}</span></button>`).join("");
+  const sent=apps.filter(a=>a.status!=="Wishlist").length;
+  const heard=apps.filter(a=>["Assessment","Interviewing","Offer","Rejected"].includes(a.status)).length;
+  const intv=counts.Interviewing+counts.Offer;
+  const t=today(),due=apps.filter(a=>a.followUp&&a.followUp<=t&&!["Offer","Rejected"].includes(a.status)).length;
+  const wk=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
+  const thisWeek=apps.filter(a=>a.applied&&a.applied>=wk).length;
+  $("rate").innerHTML=apps.length?`<span>Response rate <b>${sent?Math.round(heard/sent*100):0}%</b></span><span>Reached interview <b>${sent?Math.round(intv/sent*100):0}%</b></span><span>Applied last 7 days <b>${thisWeek}</b></span>${due?`<span>Follow-ups due <b>${due}</b></span>`:""}`:"";
+  $("sub").innerHTML=mode==="ready"?`<b>Synced</b> with your Google Sheet · open on any device`:"Loading your applications…";
+
+  const led=$("ledger");
+  if(mode==="loading"){led.innerHTML=`<div class="empty"><p>Loading your applications from Google Sheets…</p></div>`;return}
+  if(!apps.length){
+    led.innerHTML=`<div class="empty"><h2>No applications yet</h2><p>Add each job as you apply. Track its status, follow-up date and which resume you sent, then download everything as an Excel file.</p><button class="btn primary" type="button" id="emptyAdd">Add your first application</button></div>`;
+    $("emptyAdd").onclick=()=>openForm(null);return;
+  }
+  const list=filtered();
+  const head=`<div class="row head"><span class="stripe"></span><span>Company / role</span><span>Location · type</span><span>Status</span><span>Applied</span><span>Follow up</span><span></span></div>`;
+  if(!list.length){led.innerHTML=head+`<div class="empty"><p>No applications match these filters.</p></div>`;return}
+  led.innerHTML=head+list.map(a=>{
+    const c=SC[a.status]||"--s-wish";
+    const isDue=a.followUp&&a.followUp<=t&&!["Offer","Rejected"].includes(a.status);
+    const fu=a.followUp?(isDue?`<span class="due">${fmt(a.followUp)}</span>`:`<span class="mono">${fmt(a.followUp)}</span>`):`<span class="meta">—</span>`;
+    return `<div class="row${a._pending?" pending":""}" role="button" tabindex="0" data-id="${esc(a.id)}" style="--c:var(${c})">
+      <span class="stripe"></span>
+      <div class="c1"><div class="co">${esc(a.company)}</div><div class="ro">${esc(a.role)}</div></div>
+      <div class="c3"><span class="meta">${esc([a.location,a.mode].filter(Boolean).join(" · ")||"—")}</span> <span class="tag">${esc(a.type||"")}</span><span class="m-date meta">${a.applied?"Applied "+fmt(a.applied):""}</span>${isDue?' <span class="m-date"><span class="due">Follow up</span></span>':""}</div>
+      <div class="c4"><span class="pill"><span class="dot" style="--c:var(${c})"></span>${esc(a.status)}</span></div>
+      <div class="c5 mono">${a.applied?fmt(a.applied):"—"}</div>
+      <div class="c6">${fu}</div>
+      <span class="chev" aria-hidden="true">›</span>
+    </div>`}).join("");
+}
+
+/* ---------- form ---------- */
+$("status").innerHTML=STATUSES.map(s=>`<option>${s.k}</option>`).join("");
+function openForm(id){
+  editingId=id;const a=apps.find(x=>x.id===id)||{status:"Applied",type:"Internship",applied:today()};
+  FIELDS.forEach(f=>$(f).value=a[f]||"");
+  $("formTitle").textContent=id?"Edit application":"Add application";
+  $("delBtn").hidden=!id;disarm();
+  $("scrim").hidden=false;setTimeout(()=>$("company").focus(),30);
+}
+function closeForm(){$("scrim").hidden=true;editingId=null}
+function disarm(){const b=$("delBtn");b.classList.remove("armed");b.textContent="Delete"}
+$("form").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const data={id:editingId||("a"+Date.now().toString(36)+Math.random().toString(36).slice(2,7))};
+  FIELDS.forEach(f=>data[f]=$(f).value.trim());
+  $("saveBtn").disabled=true;$("saveBtn").textContent="Saving…";busy=true;
+  try{
+    const d=await call("save",{app:data});
+    const i=apps.findIndex(x=>x.id===d.app.id);
+    if(i>=0)apps[i]=d.app;else apps.push(d.app);
+    render();toast(editingId?"Changes saved":"Application added");closeForm();
+  }catch(err){toast(errMsg(err))}
+  finally{busy=false;$("saveBtn").disabled=false;$("saveBtn").textContent="Save"}
+});
+$("delBtn").onclick=async()=>{
+  const b=$("delBtn");
+  if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Tap again to delete";return}
+  b.disabled=true;busy=true;
+  try{await call("delete",{id:editingId});apps=apps.filter(a=>a.id!==editingId);render();toast("Application deleted");closeForm()}
+  catch(err){toast(errMsg(err))}
+  finally{busy=false;b.disabled=false}
+};
+$("cancelBtn").onclick=closeForm;
+$("scrim").addEventListener("click",e=>{if(e.target===$("scrim"))closeForm()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("scrim").hidden)closeForm()});
+$("addBtn").onclick=()=>openForm(null);
+$("ledger").addEventListener("click",e=>{const r=e.target.closest(".row[data-id]");if(r)openForm(r.dataset.id)});
+$("ledger").addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches(".row[data-id]")){e.preventDefault();openForm(e.target.dataset.id)}});
+$("pipe").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;statusFilter=b.dataset.s===statusFilter?"":b.dataset.s;render()});
+["q","fType","sort"].forEach(id=>$(id).addEventListener("input",render));
+$("refreshBtn").onclick=async()=>{await refresh();toast("Up to date")};
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&conn&&$("scrim").hidden)refresh(true)});
+
+/* ---------- Excel export ---------- */
+$("exportBtn").onclick=()=>{
+  if(!apps.length){toast("Add an application first, then download.");return}
+  if(!window.XLSX){toast("The Excel library didn't load. Reload the page and try again.");return}
+  const rows=[...apps].sort((a,b)=>(b.applied||"").localeCompare(a.applied||"")).map(a=>({
+    "Company":a.company||"","Role":a.role||"","Status":a.status||"","Job type":a.type||"",
+    "Date applied":a.applied||"","Follow up on":a.followUp||"","Location":a.location||"","Work mode":a.mode||"",
+    "Source":a.source||"","Resume version":a.resume||"","Pay / salary":a.salary||"","Contact":a.contact||"",
+    "Job link":a.link||"","Notes":a.notes||"","Last updated":(a.updatedAt||"").slice(0,10)}));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws["!cols"]=[22,28,14,12,13,13,20,11,16,16,14,24,40,50,13].map(w=>({wch:w}));
+  ws["!autofilter"]={ref:ws["!ref"]};
+  const summary=[["Status","Count"],...STATUSES.map(s=>[s.k,apps.filter(a=>a.status===s.k).length]),["Total",apps.length]];
+  const ws2=XLSX.utils.aoa_to_sheet(summary);ws2["!cols"]=[{wch:16},{wch:8}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Applications");XLSX.utils.book_append_sheet(wb,ws2,"Summary");
+  XLSX.writeFile(wb,"job-applications-"+today()+".xlsx");
+};
+
+/* ---------- start ---------- */
+conn=loadConn();
+if(!conn){showConnect("")}else{$("app").hidden=false;render();refresh()}
+})();
+</script>
+</body>
+</html>
